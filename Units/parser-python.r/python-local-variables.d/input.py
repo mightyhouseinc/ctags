@@ -8,8 +8,7 @@ def func02():
     local03 = 3
 
 def func03(x):
-    locallambda01 = lambda x:x
-    return locallambda01
+    return lambda x:x
 
 def func04(x):
     def localfunc01():

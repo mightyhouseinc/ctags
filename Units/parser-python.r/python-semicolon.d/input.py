@@ -7,7 +7,9 @@ class Cls:
     def func(): pass;
 
     @staticmethod
-    def func2(x): x += 1; y = x + 1; return y;
+    def func2(x):
+        x += 1
+        return x + 1;
 
 
 assert(VAR1 == 1)

@@ -91,10 +91,7 @@ TMAIN_STATUS = True
 TMAIN_FAILED = []
 
 def remove_prefix(string, prefix):
-    if string.startswith(prefix):
-        return string[len(prefix):]
-    else:
-        return string
+    return string[len(prefix):] if string.startswith(prefix) else string
 
 def is_cygwin():
     system = platform.system()
@@ -116,10 +113,7 @@ def error_exit(status, msg):
     sys.exit(status)
 
 def line(*args, file=sys.stdout):
-    if len(args) > 0:
-        ch = args[0]
-    else:
-        ch = '-'
+    ch = args[0] if args else '-'
     print(ch * 60, file=file)
 
 def remove_readonly(func, path, _):
@@ -143,22 +137,21 @@ def clean_bundles(bundles):
 def clean_tcase(d, bundles):
     if os.path.isdir(d):
         clean_bundles(bundles)
-        for fn in glob.glob(d + '/*.tmp'):
+        for fn in glob.glob(f'{d}/*.tmp'):
             os.remove(fn)
-        for fn in glob.glob(d + '/*.TMP'):
+        for fn in glob.glob(f'{d}/*.TMP'):
             os.remove(fn)
 
 def check_availability(cmd):
     if not shutil.which(cmd):
-        error_exit(1, cmd + ' command is not available')
+        error_exit(1, f'{cmd} command is not available')
 
 def check_units(name, category):
     if len(UNITS) == 0:
         return True
 
     for u in UNITS:
-        ret = re.match(r'(.+)/(.+)', u)
-        if ret:
+        if ret := re.match(r'(.+)/(.+)', u):
             if ret.group(1, 2) == (category, name):
                 return True
         elif u == name:
@@ -188,12 +181,9 @@ def check_features(feature, ffile):
         if expected[0] == '!':
             if expected[1:] in _FEATURE_LIST:
                 found_unexpectedly = True
-        else:
-            if expected in _FEATURE_LIST:
-                found = True
-        if found_unexpectedly:
-            return (False, expected)
-        elif not found:
+        elif expected in _FEATURE_LIST:
+            found = True
+        if found_unexpectedly or not found:
             return (False, expected)
     return (True, '')
 
@@ -224,10 +214,7 @@ def decorate(decorator, msg, colorized):
     else:
         error_exit(1, 'INTERNAL ERROR: wrong run_result function')
 
-    if colorized:
-        return "\x1b[" + num + 'm' + msg + "\x1b[m"
-    else:
-        return msg
+    return "\x1b[" + num + 'm' + msg + "\x1b[m" if colorized else msg
 
 def run_result(result_type, msg, output, *args, file=sys.stdout):
     func_dict = {
@@ -245,20 +232,20 @@ def run_result(result_type, msg, output, *args, file=sys.stdout):
 
 def run_result_skip(msg, f, colorized, *args):
     s = msg + decorate('yellow', 'skipped', colorized)
-    if len(args) > 0:
-        s += ' (' + args[0] + ')'
+    if args:
+        s += f' ({args[0]})'
     print(s, file=f)
 
 def run_result_error(msg, f, colorized, *args):
     s = msg + decorate('red', 'failed', colorized)
-    if len(args) > 0:
-        s += ' (' + args[0] + ')'
+    if args:
+        s += f' ({args[0]})'
     print(s, file=f)
 
 def run_result_ok(msg, f, colorized, *args):
     s = msg + decorate('green', 'passed', colorized)
-    if len(args) > 0:
-        s += ' (' + args[0] + ')'
+    if args:
+        s += f' ({args[0]})'
     print(s, file=f)
 
 def run_result_known_error(msg, f, colorized, *args):
@@ -269,7 +256,7 @@ def run_shrink(cmdline_template, finput, foutput, lang):
     script = sys.argv[0]
     script = os.path.splitext(script)[0]   # remove '.py'
 
-    print('Shrinking ' + finput + ' as ' + lang)
+    print(f'Shrinking {finput} as {lang}')
     # fallback to the shell script version
     subprocess.run([SHELL, script, 'shrink',
         '--timeout=1', '--foreground',
@@ -280,48 +267,47 @@ def run_shrink(cmdline_template, finput, foutput, lang):
 # If internal is True, return a pair of [pattern, replacement],
 # otherwise return a list of command line arguments.
 def basename_filter(internal, output_type):
-    filters_external = {
-            'ctags': r's%\(^[^\t]\{1,\}\t\)\(/\{0,1\}\([^/\t]\{1,\}/\)*\)%\\1%',
-            # "input" in the expresion is for finding input file names in the TAGS file.
-            # RAWOUT.tmp:
-            #
-            #   ./Units/parser-ada.r/ada-etags-suffix.d/input_0.adb,238
-            #   package body Input_0 is   ^?Input_0/b^A1,0
-            #
-            # With the original expression, both "./Units/parser-ada.r/ada-etags-suffix.d/"
-            # and "package body Input_0 is   Input_0/' are deleted.
-            # FILTERED.tmp:
-            #
-            # input_0.adb,238
-            # b^A1,0
-            #
-            # Adding "input" ot the expression is for deleting only the former one and for
-            # skpping the later one.
-            #
-            # FIXME: if "input" is included as a substring of tag entry names, filtering
-            # with this expression makes the test fail.
-            'etags': r's%.*\/\(input[-._][[:print:]]\{1,\}\),\([0-9]\{1,\}$\)%\\1,\\2%',
-            'xref': r's%\(.*[[:digit:]]\{1,\} \)\([^ ]\{1,\}[^ ]\{1,\}\)/\([^ ].\{1,\}.\{1,\}$\)%\\1\\3%',
-            'json': r's%\("path": \)"[^"]\{1,\}/\([^/"]\{1,\}\)"%\\1"\\2"%',
-            }
-    filters_internal = {
-            'ctags': [r'(^[^\t]+\t)(/?([^/\t]+/)*)', r'\1'],
-            # See above comments about "input".
-            'etags': [r'.*/(input[-._]\S+),([0-9]+$)', r'\1,\2'],
-            'xref': [r'(.*\d+ )([^ ]+[^ ]+)/([^ ].+.+$)', r'\1\3'],
-            'json': [r'("path": )"[^"]+/([^/"]+)"', r'\1"\2"'],
-            }
     if internal:
+        filters_internal = {
+                'ctags': [r'(^[^\t]+\t)(/?([^/\t]+/)*)', r'\1'],
+                # See above comments about "input".
+                'etags': [r'.*/(input[-._]\S+),([0-9]+$)', r'\1,\2'],
+                'xref': [r'(.*\d+ )([^ ]+[^ ]+)/([^ ].+.+$)', r'\1\3'],
+                'json': [r'("path": )"[^"]+/([^/"]+)"', r'\1"\2"'],
+                }
         return filters_internal[output_type]
     else:
+        filters_external = {
+                'ctags': r's%\(^[^\t]\{1,\}\t\)\(/\{0,1\}\([^/\t]\{1,\}/\)*\)%\\1%',
+                # "input" in the expresion is for finding input file names in the TAGS file.
+                # RAWOUT.tmp:
+                #
+                #   ./Units/parser-ada.r/ada-etags-suffix.d/input_0.adb,238
+                #   package body Input_0 is   ^?Input_0/b^A1,0
+                #
+                # With the original expression, both "./Units/parser-ada.r/ada-etags-suffix.d/"
+                # and "package body Input_0 is   Input_0/' are deleted.
+                # FILTERED.tmp:
+                #
+                # input_0.adb,238
+                # b^A1,0
+                #
+                # Adding "input" ot the expression is for deleting only the former one and for
+                # skpping the later one.
+                #
+                # FIXME: if "input" is included as a substring of tag entry names, filtering
+                # with this expression makes the test fail.
+                'etags': r's%.*\/\(input[-._][[:print:]]\{1,\}\),\([0-9]\{1,\}$\)%\\1,\\2%',
+                'xref': r's%\(.*[[:digit:]]\{1,\} \)\([^ ]\{1,\}[^ ]\{1,\}\)/\([^ ].\{1,\}.\{1,\}$\)%\\1\\3%',
+                'json': r's%\("path": \)"[^"]\{1,\}/\([^/"]\{1,\}\)"%\\1"\\2"%',
+                }
         return ['sed', '-e', filters_external[output_type]]
 
 # convert a command line list to a command line string
 def join_cmdline(cmdline):
     # surround with '' if an argument includes spaces or '\'
     # TODO: use more robust way
-    return ' '.join("'" + x + "'" if (' ' in x) or ('\\' in x) else x
-        for x in cmdline)
+    return ' '.join(f"'{x}'" if (' ' in x) or ('\\' in x) else x for x in cmdline)
 
 def run_record_cmdline(cmdline, ffilter, ocmdline, output_type):
     with open(ocmdline, 'w') as f:
@@ -332,7 +318,7 @@ def run_record_cmdline(cmdline, ffilter, ocmdline, output_type):
             ffilter), file=f)
 
 def prepare_bundles(frm, to, obundles):
-    for src in glob.glob(frm + '/*'):
+    for src in glob.glob(f'{frm}/*'):
         fn = os.path.basename(src)
         if fn.startswith('input.'):
             continue
@@ -345,7 +331,7 @@ def prepare_bundles(frm, to, obundles):
         elif fn == 'args.ctags':
             continue
         else:
-            dist = to + '/' + fn
+            dist = f'{to}/{fn}'
             if os.path.isdir(src):
                 shutil.copytree(src, dist, copy_function=shutil.copyfile)
             else:
@@ -357,18 +343,22 @@ def anon_normalize_sub(internal, ctags, input_actual, *args):
     # TODO: "Units" should not be hardcoded.
     input_expected = './Units' + re.sub(r'^.*?/Units', r'', input_actual, 1)
 
-    ret = subprocess.run([CTAGS, '--quiet', '--options=NONE', '--_anonhash=' + input_actual],
-            stdout=subprocess.PIPE)
+    ret = subprocess.run(
+        [CTAGS, '--quiet', '--options=NONE', f'--_anonhash={input_actual}'],
+        stdout=subprocess.PIPE,
+    )
     actual = ret.stdout.decode('utf-8').splitlines()[0]
-    ret = subprocess.run([CTAGS, '--quiet', '--options=NONE', '--_anonhash=' + input_expected],
-            stdout=subprocess.PIPE)
+    ret = subprocess.run(
+        [CTAGS, '--quiet', '--options=NONE', f'--_anonhash={input_expected}'],
+        stdout=subprocess.PIPE,
+    )
     expected = ret.stdout.decode('utf-8').splitlines()[0]
 
     if internal:
         retlist = [[actual, expected]]
     else:
-        retlist = ['-e', 's/' + actual + '/' + expected + '/g']
-    if len(args) > 0:
+        retlist = ['-e', f's/{actual}/{expected}/g']
+    if args:
         return retlist + anon_normalize_sub(internal, ctags, *args)
     else:
         return retlist
@@ -409,8 +399,7 @@ def guess_lang(cmdline, finput):
 def guess_lang_from_log(log):
     with open(log, 'r', encoding='utf-8', errors='ignore') as f:
         for l in f:
-            ret = re.match('OPENING.* as (.*) language .*file ', l)
-            if ret:
+            if ret := re.match('OPENING.* as (.*) language .*file ', l):
                 return ret.group(1)
     return ''
 

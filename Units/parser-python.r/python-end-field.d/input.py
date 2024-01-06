@@ -4,8 +4,6 @@ class A(object):
         def g(x):
             pass
 
-        pass
-
 
     y = 1
 
@@ -15,4 +13,3 @@ class A(object):
 
     def i(self):
         x = 1
-        pass

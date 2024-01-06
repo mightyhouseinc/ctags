@@ -35,10 +35,7 @@ def print_usage(n, f):
     sys.exit(n)
 
 def next_segment(line):
-    if line.endswith ('\\'):
-        return line[0:-1]
-    else:
-        return (line + '\n')
+    return line[:-1] if line.endswith ('\\') else (line + '\n')
 
 def wash_cmdline(cmdline):
     return cmdline
@@ -46,11 +43,11 @@ def wash_cmdline(cmdline):
 def verify_test_case(t):
     prefix = '%(man_file)s[%(nth)d]:%(start_linum)d: '%t
     msg = False
-    if not 'code' in t:
+    if 'code' not in t:
         msg = 'cannot find input lines'
-    elif not 'tags' in t:
+    elif 'tags' not in t:
         msg = 'cannot find expected tags output'
-    elif not 'cmdline' in t:
+    elif 'cmdline' not in t:
         msg = 'cannot find ctags command line'
 
     if msg:
@@ -65,16 +62,16 @@ def is_option(c):
     return False
 
 def run_test_case(tmpdir, ctags, t):
-    d = tmpdir + '/' + str(os.getpid())
+    d = f'{tmpdir}/{os.getpid()}'
     os.makedirs (d,exist_ok=True)
-    i = d + '/' + t['input_file_name']
+    i = f'{d}/' + t['input_file_name']
     o0 = 'actual.tags'
-    o = d + '/' + o0
+    o = f'{d}/{o0}'
     e0 = 'expected.tags'
-    e = d + '/' + e0
-    D = d + '/' + 'tags.diff'
+    e = f'{d}/{e0}'
+    D = f'{d}/tags.diff'
     O0 = 'args.ctags'
-    O = d + '/' + O0
+    O = f'{d}/{O0}'
     with open(i, mode='w', encoding='utf-8') as f:
         f.write(t['code'])
 
@@ -94,7 +91,7 @@ def run_test_case(tmpdir, ctags, t):
                 in_pattern = c
             elif in_pattern and not is_option(c):
                 # TODO: This doesn't work if whitespace is repeated.
-                in_pattern = in_pattern + ' ' + c
+                in_pattern = f'{in_pattern} {c}'
             else:
                 if in_pattern:
                     print (in_pattern, file=Of)
@@ -104,8 +101,7 @@ def run_test_case(tmpdir, ctags, t):
             print (in_pattern, file=Of)
 
     with open(o, mode='w', encoding='utf-8') as h:
-        cmdline = [ctags, '--quiet', '--options=NONE',
-                   '--options=' + O0, inputf]
+        cmdline = [ctags, '--quiet', '--options=NONE', f'--options={O0}', inputf]
         subprocess.run(cmdline, cwd=d, stdout=h)
 
     with open(D, mode='w', encoding='utf-8') as diff:
@@ -171,27 +167,24 @@ def extract_test_cases(f):
     s=state.start
     test_spec = {}
 
-    for line in  f.readlines():
+    for line in f.readlines():
         linum += 1
         line = line.rstrip('\r\n')
 
         if s == state.tags or s == state.code:
             if prefix:
-                m = re.search('^' + prefix + '(.*)$', line)
-                if m:
+                if m := re.search(f'^{prefix}(.*)$', line):
                     sink += next_segment(m.group(1))
                     continue
                 if line == '':
                     sink += '\n'
                     continue
-            else:
-                m = re.search('^([ \t]+)(.+)$', line)
-                if m:
-                    prefix = m.group(1)
-                    sink += next_segment(m.group(2))
-                    continue
-                elif re.search ('^([ \t]*)$', line):
-                    continue
+            elif m := re.search('^([ \t]+)(.+)$', line):
+                prefix = m.group(1)
+                sink += next_segment(m.group(2))
+                continue
+            elif re.search ('^([ \t]*)$', line):
+                continue
 
             sink = sink.rstrip('\r\n') + '\n'
 
@@ -206,24 +199,20 @@ def extract_test_cases(f):
                 s = state.start
                 yield test_spec
 
-        m = s == state.start and re.search ('^"(input\.[^"]+)"$', line)
-        if m:
+        if m := s == state.start and re.search('^"(input\.[^"]+)"$', line):
             test_spec ['start_linum'] = linum
             test_spec ['input_file_name'] = m.group(1)
             s = state.input
             continue
-        m = s == state.input and re.search ('^.. code-block::.*', line)
-        if m:
+        if m := s == state.input and re.search('^.. code-block::.*', line):
             sink = ''
             prefix = False
             s = state.code
             continue
-        m = s == state.code_done and re.search ('^"output.tags"$', line)
-        if m:
+        if m := s == state.code_done and re.search('^"output.tags"$', line):
             s = state.output
             continue
-        m = s == state.output and re.search ('with[ \t]"([^"]+)"', line)
-        if m:
+        if m := s == state.output and re.search('with[ \t]"([^"]+)"', line):
             test_spec ['cmdline'] = wash_cmdline (m.group(1))
             s = state.output_after_options
             continue
@@ -234,17 +223,16 @@ def extract_test_cases(f):
             s = state.tags
             continue
 
-def man_test (tmpdir, ctags, man_file):
+def man_test(tmpdir, ctags, man_file):
     failures = []
     result = True
-    print ('# Run test cases in ' + man_file)
+    print(f'# Run test cases in {man_file}')
     print ('```')
     with open(man_file, encoding='utf-8') as f:
         for t in extract_test_cases (f):
             t['man_file'] = man_file
-            v = verify_test_case (t)
-            if v:
-                print ("error: " + v, file=sys.stderr)
+            if v := verify_test_case(t):
+                print(f"error: {v}", file=sys.stderr)
                 result = False
                 continue
             r = run_test_case (tmpdir, ctags, t)
@@ -253,21 +241,18 @@ def man_test (tmpdir, ctags, man_file):
                 result = False
                 failures.append(copy.copy(r))
     print ('```')
-    if (len(failures) > 0):
+    if failures:
         print ('# Failed test case(s)')
         for f in failures:
             report_failure(f)
     return result
 
-def man_tests (tmpdir, ctags, man_files):
-    result = 0
-    for m in man_files:
-        if not man_test(tmpdir, ctags, m):
-            result += 1
+def man_tests(tmpdir, ctags, man_files):
+    result = sum(1 for m in man_files if not man_test(tmpdir, ctags, m))
     print ('OK' if result == 0 else 'FAILED')
     return result == 0
 
-if (len(sys.argv) < 4) or (sys.argv[1] == '-h' or sys.argv[1] == '--help'):
+if len(sys.argv) < 4 or sys.argv[1] in ['-h', '--help']:
     print_usage (2, sys.stderr)
 
 tmpdir = sys.argv[1]

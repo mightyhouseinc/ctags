@@ -25,8 +25,8 @@ class Cursor:
     async def __anext__(self):
         if not self.buffer:
             self.buffer = await self._prefetch()
-            if not self.buffer:
-                raise StopAsyncIteration
+        if not self.buffer:
+            raise StopAsyncIteration
         return self.buffer.popleft()
 
 class AsyncIteratorWrapper:

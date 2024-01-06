@@ -9,11 +9,7 @@ some_number: int           # variable without initial value
 some_list: List[int] = []  # variable with initial value
 
 sane_world: bool
-if 2+2 == 4:
-    sane_world = True
-else:
-    sane_world = False
-
+sane_world = True
 # Tuple packing with variable annotation syntax
 t: Tuple[int, ...] = (1, 2, 3)
 
@@ -54,8 +50,7 @@ c = Cls()
 c.x: int = 0  # Annotates c.x with int.
 c.y: int      # Annotates c.y with int.
 
-d = {}
-d['a']: int = 0  # Annotates d['a'] with int.
+d = {'a': 0}
 d['b']: int      # Annotates d['b'] with int.
 
 
