@@ -6,7 +6,10 @@ message.append(f" [line {lineno:2d}]")
 
 methoddef_name = f"{c_basename.upper()}_METHODDEF"
 
-print(f"Usage: {sys.argv[0]} [{'|'.join('--'+opt for opt in valid_opts)}]", file=sys.stderr)
+print(
+    f"Usage: {sys.argv[0]} [{'|'.join(f'--{opt}' for opt in valid_opts)}]",
+    file=sys.stderr,
+)
 
 # check if nothing messed up parsing
 zzz = 1

@@ -11,13 +11,14 @@ class __JustTheSame:
 def _and_again():
     def sub_is_private():
         pass
+
     def _even_with_underscore():
         pass
+
     class ClassesToo:
         pass
     class _ForReal:
         pass
-    pass
 
 def __still_the_same():
     pass

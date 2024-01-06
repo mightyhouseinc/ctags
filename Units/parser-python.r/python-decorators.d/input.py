@@ -24,7 +24,7 @@ class class01(object):
 
     @classmethod
     def hi(cls):
-        print("hi from %s" % cls.__name__)
+        print(f"hi from {cls.__name__}")
 
     @noopwrapper(1, 2, 3)
 
@@ -36,8 +36,9 @@ class class01(object):
     @staticmethod
     def tracer(f):
         def wrapper():
-            print("tracing %s" % f.__name__)
+            print(f"tracing {f.__name__}")
             return f()
+
         return wrapper
 
 

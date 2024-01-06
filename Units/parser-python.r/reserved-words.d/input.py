@@ -1,7 +1,4 @@
-if True:
-    x = 1
-else:
-    x = 2
+x = 1
 
 def f(text, pat):
     if "." in text:
